@@ -88,18 +88,33 @@ a { color: var(--site); }
   font: 600 12px var(--mono); font-variant-numeric: tabular-nums; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
 #map.tiles .kname { display: none; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 500; pointer-events: none; }
+.sheet-handle { display: none; }
+/* Phones: full-screen map with the panel as a bottom sheet (peek / half / full), tapped open via the handle */
 @media (max-width: 760px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto; height: auto; }
-  #map { height: 55vh; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 1; }
-  .panel { border-right: 0; border-top: 1px solid var(--line); padding-right: max(16px, env(safe-area-inset-right, 0px)); overflow: visible; }
+  .app { display: block; position: relative; }
+  #map { position: absolute !important; inset: 0; }
+  .panel { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1000; height: 160px; border-right: 0;
+    border-top: 1px solid var(--line); border-radius: 14px 14px 0 0; box-shadow: 0 -4px 18px rgba(0,0,0,.18);
+    overscroll-behavior: contain; transition: height .2s ease; gap: 14px;
+    padding-top: 0; padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .app[data-sheet="half"] .panel { height: 50%; }
+  .app[data-sheet="full"] .panel { height: calc(100% - 48px); }
+  .sheet-handle { display: flex; flex-direction: column; align-items: center; gap: 5px; position: sticky; top: 0; z-index: 2;
+    margin: 0 -16px; padding: 8px 0 6px; border: 0; background: var(--panel); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+  .sheet-handle::before { content: ""; width: 40px; height: 4px; border-radius: 2px; background: var(--border); }
+  .sheet-handle:focus-visible { outline: 2px solid var(--site); outline-offset: -2px; }
+  .lede { display: none; }
+  #detail { order: -1; }   /* selected site first, right under the handle */
+  .sheet-handle { order: -2; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 
 </head>
 <body>
-<div class="app">
-  <aside class="panel">
+<div class="app" id="app" data-sheet="peek">
+  <aside class="panel" id="panel">
+    <button type="button" class="sheet-handle" id="handle" aria-label="Show more or less of the panel"><span id="handle-txt">Filters and sites</span></button>
     <header>
       <h1>Frøplantasje Trøndelag</h1>
       <p class="lede">Candidate seed-orchard sites for Skogfrøverket, screened from open national data at 10 m. A shortlist for field checks, not a final answer.</p>
@@ -264,10 +279,19 @@ function select(id, zoom) {
   const lyr = siteLayer.getLayers().find(l => l.feature.properties.site_id === id);
   if (lyr) {
     lyr.bringToFront(); showDetail(lyr.feature.properties);
-    if (zoom) map.fitBounds(lyr.getBounds(), { maxZoom: 14, padding: [40, 40] });
+    sheet("half"); $("panel").scrollTop = 0;
+    if (zoom) map.fitBounds(lyr.getBounds(), { maxZoom: 14, paddingTopLeft: [40, 40],
+                                               paddingBottomRight: [40, 40 + (mobile.matches ? innerHeight / 2 : 0)] });
   }
   renderList();
 }
+const mobile = matchMedia("(max-width: 760px)");
+function sheet(s) {
+  if (!mobile.matches) return;
+  $("app").dataset.sheet = s;
+  $("handle-txt").textContent = s === "full" ? "Show map" : "Filters and sites";
+}
+$("handle").onclick = () => { const s = $("app").dataset.sheet; sheet(s === "peek" ? "half" : s === "half" ? "full" : "peek"); };
 const SORTS = {
   area: (a, b) => b.area_ha - a.area_ha,
   pollen: (a, b) => (a[pk()] ?? 0) - (b[pk()] ?? 0) || b.area_ha - a.area_ha,
@@ -344,6 +368,8 @@ let base = [];
   siteLayer.eachLayer(l => { const id = l.feature.properties.site_id;
     markerOf[id] = L.marker(l.getBounds().getCenter(), { icon: dot, title: "Site " + id }).on("click", () => select(id, true)); });
   map.on("zoomend", syncZoom);
+  map.on("dragstart", () => sheet("peek"));
+  if (mobile.matches) { map.attributionControl.setPosition("topright"); map.zoomControl.remove(); }   // phones pinch-zoom
   map.fitBounds(kl.getBounds(), { padding: [10, 10] });
   syncZoom();
   $("method").textContent = METHOD;

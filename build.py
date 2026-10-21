@@ -36,11 +36,11 @@ def main():
     html = html.replace("/*LEAFLET_CSS*/", open(os.path.join(M, "vendor", "leaflet.css"), encoding="utf-8").read())
     html = html.replace('/*METHOD*/""', json.dumps(method(os.path.join(ROOT, "analysis", "rules_froplantasje.toml")), ensure_ascii=False))
     # full document for a normal web host (the artifact viewer used to add this wrapper)
-    head, body = html.split('<div class="app">', 1)
+    head, body = html.split('<div class="app"', 1)
     html = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
             '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
             '<style>body{margin:0}[hidden]{display:none!important}</style>\n'
-            f'{head}</head>\n<body>\n<div class="app">{body}</body>\n</html>\n')
+            f'{head}</head>\n<body>\n<div class="app"{body}</body>\n</html>\n')
     open(os.path.join(M, "index.html"), "w", encoding="utf-8").write(html)
     print("map/index.html written")
 
