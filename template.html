@@ -1,0 +1,342 @@
+<title>Frøplantasje Trøndelag</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500&display=swap">
+<style>/*LEAFLET_CSS*/</style>
+<style>
+/* Layout: map fills the screen, a fixed-width panel on the left holds filters, site list and the selected site; stacks under the map on phones. */
+:root {
+  --bg: #f3f5f2; --panel: #ffffff; --fg: #1d2420; --muted: #5f6b64; --line: #d9dfda;
+  --land: #e9ece4; --water: #c9dbe3; --border: #b9c2bb; --road: #c79a6b;
+  --site: #1f6f5c; --site-fill: rgba(31,111,92,.45); --plant: #8a6d1f; --plant-fill: rgba(138,109,31,.28);
+  --sel: #d1495b; --chip: #eef2ee; --good: #2f7a3f; --warn: #a86a12; --bad: #b23a3a;
+  --font: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Spline Sans Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #121614; --panel: #181d1a; --fg: #e4e9e5; --muted: #9aa69f; --line: #2a322d;
+  --land: #1d2320; --water: #142a33; --border: #3a4540; --road: #8c6a48;
+  --site: #4fc39f; --site-fill: rgba(79,195,159,.40); --plant: #d2b24f; --plant-fill: rgba(210,178,79,.22);
+  --sel: #ff6b7d; --chip: #222a26; --good: #6cc77f; --warn: #e0a64a; --bad: #ff7b7b; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #121614; --panel: #181d1a; --fg: #e4e9e5; --muted: #9aa69f; --line: #2a322d;
+  --land: #1d2320; --water: #142a33; --border: #3a4540; --road: #8c6a48;
+  --site: #4fc39f; --site-fill: rgba(79,195,159,.40); --plant: #d2b24f; --plant-fill: rgba(210,178,79,.22);
+  --sel: #ff6b7d; --chip: #222a26; --good: #6cc77f; --warn: #e0a64a; --bad: #ff7b7b; color-scheme: dark }
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--font); }
+.app { height: 100%; display: grid; grid-template-columns: 360px 1fr; }
+.panel { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; min-width: 0;
+  display: flex; flex-direction: column; gap: 18px;
+  padding-block: 18px 24px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: 16px; }
+#map { background: var(--water); min-height: 0; }
+h1 { font-size: 20px; line-height: 1.2; margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+.lede { color: var(--muted); margin: 6px 0 0; }
+h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+section { display: flex; flex-direction: column; gap: 10px; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.stat { background: var(--chip); border-radius: 6px; padding: 8px 10px; }
+.stat b { display: block; font: 600 18px/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 11px; color: var(--muted); }
+label.row { display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; }
+label.row input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--site); }
+.val { font: 500 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-size: 12px; padding: 4px 10px; border: 0; background: transparent; color: var(--fg); cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--site); color: var(--panel); }
+.check { display: flex; gap: 8px; align-items: center; }
+.check input { accent-color: var(--site); }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 5px; border: 1.5px solid; }
+.list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.item { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 4px; border-bottom: 1px solid var(--line);
+  background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.item:hover, .item:focus-visible { background: var(--chip); outline: none; }
+.item[aria-current="true"] { box-shadow: inset 3px 0 0 var(--sel); background: var(--chip); }
+.item .k { font-weight: 600; }
+.item .a { font: 500 13px var(--mono); font-variant-numeric: tabular-nums; }
+.item .m { grid-column: 1 / -1; font-size: 12px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; }
+.sortbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+select { font: inherit; font-size: 12px; padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--fg); }
+.card { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+.card h3 { margin: 0; font-size: 16px; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.bar { display: flex; height: 10px; border-radius: 3px; overflow: hidden; background: var(--chip); }
+.bar i { display: block; height: 100%; }
+.pill { display: inline-block; font-size: 11px; padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; font-weight: 600; }
+.pill.good { color: var(--good); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+a { color: var(--site); }
+.empty { color: var(--muted); font-size: 13px; padding: 10px 4px; }
+.leaflet-container { background: var(--water); font: inherit; }
+.leaflet-control-zoom a { background: var(--panel); color: var(--fg); border-color: var(--line); }
+.leaflet-control-attribution { background: color-mix(in srgb, var(--panel) 80%, transparent) !important; color: var(--muted) !important; font-size: 10px; }
+.leaflet-control-attribution a { color: var(--muted); }
+.leaflet-tooltip.kname { background: transparent; border: 0; box-shadow: none; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .03em; padding: 0; }
+.leaflet-tooltip.kname::before { display: none; }
+.dot { background: var(--site); border: 2px solid var(--panel); border-radius: 50%; box-shadow: 0 0 0 1px var(--site); }
+.clu { display: grid; place-items: center; border-radius: 50%; background: var(--site); color: var(--panel); border: 2px solid var(--panel);
+  font: 600 12px var(--mono); font-variant-numeric: tabular-nums; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+#map.tiles .kname { display: none; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); z-index: 500; pointer-events: none; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 55vh auto; height: auto; }
+  #map { height: 55vh; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 1; }
+  .panel { border-right: 0; border-top: 1px solid var(--line); padding-right: max(16px, env(safe-area-inset-right, 0px)); overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <aside class="panel">
+    <header>
+      <h1>Frøplantasje Trøndelag</h1>
+      <p class="lede">Candidate seed-orchard sites for Skogfrøverket, screened from open national data at 10 m. A shortlist for field checks, not a final answer.</p>
+    </header>
+
+    <section aria-label="Summary">
+      <div class="stats">
+        <div class="stat"><b id="s-n">–</b><span>sites shown</span></div>
+        <div class="stat"><b id="s-ha">–</b><span>hectares</span></div>
+        <div class="stat"><b id="s-big">–</b><span>≥ 10 ha</span></div>
+      </div>
+    </section>
+
+    <section aria-label="Filters">
+      <h2>Filter</h2>
+      <label class="row" for="f-area">Minimum size <span class="val" id="v-area"></span>
+        <input id="f-area" type="range" min="5" max="50" step="1" value="5"></label>
+      <div class="sortbar"><span>Pollen source</span>
+        <div class="seg" role="group" aria-label="Species">
+          <button type="button" id="sp-gran" aria-pressed="true">Spruce</button>
+          <button type="button" id="sp-furu" aria-pressed="false">Pine</button>
+        </div></div>
+      <label class="row" for="f-pollen">Max share within 300 m of mature stands <span class="val" id="v-pollen"></span>
+        <input id="f-pollen" type="range" min="0" max="100" step="5" value="100"></label>
+      <label class="check" for="f-frost"><input id="f-frost" type="checkbox"> Hide likely frost hollows (TPI below −5 m)</label>
+      <label class="check" for="f-one"><input id="f-one" type="checkbox"> Only sites on one property (gnr/bnr)</label>
+      <label class="check" for="f-plant" hidden><!-- hidden until the general profile is re-run; old file is 55 MB --><input id="f-plant" type="checkbox"> Show general planting sites (other profile)</label>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--site-fill);border-color:var(--site)"></i>Seed orchard candidate</span>
+        <span hidden><i class="sw" style="background:var(--plant-fill);border-color:var(--plant)"></i>General planting site</span>
+        <span><i class="sw" style="background:transparent;border-color:var(--sel)"></i>Selected</span>
+      </div>
+      <div class="sortbar"><span>Background</span>
+        <div class="seg" role="group" aria-label="Background map">
+          <button type="button" id="bg-topo" aria-pressed="true">Topo</button>
+          <button type="button" id="bg-grey" aria-pressed="false">Grey</button>
+          <button type="button" id="bg-simple" aria-pressed="false">Simple</button>
+        </div></div>
+    </section>
+
+    <section aria-label="Selected site" id="detail" hidden></section>
+
+    <section aria-label="Sites">
+      <div class="sortbar"><h2 style="margin:0">Sites</h2>
+        <select id="sort" aria-label="Sort sites">
+          <option value="area">Largest first</option>
+          <option value="pollen">Least pollen source first</option>
+          <option value="south">Most south-facing first</option>
+          <option value="sand">Most sand/gravel soil first</option>
+        </select></div>
+      <div class="list" id="list"></div>
+    </section>
+
+    <section aria-label="Method">
+      <h2>How these were found</h2>
+      <p class="note" id="method"></p>
+      <p class="note">Data: Kartverket (N50, DTM, Matrikkel, forest roads), NIBIO (SR16, AR50, Beitebruk, Gjengroing), Miljødirektoratet (protected areas, nature types, Villrein), Landbruksdirektoratet (reindeer), Riksantikvaren, NGU (Løsmasser), Forsvarsbygg. Nature types are only mapped where someone has surveyed; check <em>NiN surveyed</em> on each site.</p>
+    </section>
+  </aside>
+  <div id="map" style="position:relative"><div class="loading" id="loading">Loading map data…</div></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+<script>
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const $ = id => document.getElementById(id);
+const fmt = (v, d = 0) => v == null ? "–" : Number(v).toLocaleString("nb-NO", { maximumFractionDigits: d, minimumFractionDigits: d });
+const pct = v => v == null ? "–" : Math.round(v * 100) + " %";
+const METHOD = /*METHOD*/"";
+
+const map = L.map("map", { preferCanvas: true, minZoom: 5, maxZoom: 16, zoomSnap: 0.5, attributionControl: true })
+  .setView([63.9, 11.3], 7);
+map.attributionControl.setPrefix(false).addAttribution("Background © Kartverket (WMS topo / gråtone) · Data: Kartverket, NIBIO, Miljødirektoratet, NGU, Riksantikvaren");
+const renderer = L.canvas({ padding: 0.3 });
+// panes under the sites: Kartverket WMS, and the simple vector background (used if WMS can't load)
+for (const [name, z] of [["basevec", 230], ["bm", 240]]) map.createPane(name).style.zIndex = z;
+const baseRenderer = L.canvas({ padding: 0.3, pane: "basevec" });
+let wmsFailed = 0;
+const wms = k => L.tileLayer.wms(`https://wms.geonorge.no/skwms1/wms.${k}?`, { layers: k, format: "image/png", pane: "bm", maxZoom: 16 })
+  .on("tileload", () => { wmsFailed = -1e9; })
+  .on("tileerror", () => { if (++wmsFailed === 6) setBg("simple"); });   // e.g. opened where outside images are blocked
+const bgLayers = { topo: wms("topo"), grey: wms("topograatone") };
+function setBg(bg) {
+  state.bg = bg;
+  for (const k of ["topo", "grey", "simple"]) $("bg-" + k).setAttribute("aria-pressed", k === bg);
+  for (const [k, l] of Object.entries(bgLayers)) k === bg ? l.addTo(map) : map.removeLayer(l);
+  $("map").classList.toggle("tiles", bg !== "simple");
+  map.getPane("basevec").hidden = bg !== "simple";
+}
+
+let state = { bg: "topo", area: 5, species: "gran", pollen: 1, frost: false, one: false, sort: "area", sel: null };
+let sites = [], kommuner = {}, siteLayer, plantLayer, plantData;
+const POLY_ZOOM = 11;   // below this, sites show as clustered points
+const markerOf = {};
+const points = L.markerClusterGroup({ showCoverageOnHover: false, maxClusterRadius: 50, disableClusteringAtZoom: POLY_ZOOM,
+  iconCreateFunction: c => { const n = c.getChildCount(), s = n < 10 ? 28 : n < 50 ? 34 : 42;
+    return L.divIcon({ html: n, className: "clu", iconSize: [s, s] }); } });
+function syncZoom() {
+  const near = map.getZoom() >= POLY_ZOOM;
+  if (near) { map.removeLayer(points); siteLayer.addTo(map); restyle(); } else { map.removeLayer(siteLayer); points.addTo(map); }
+}
+
+function styleFor(f) {
+  const sel = state.sel === f.properties.site_id;
+  return { renderer, color: sel ? css("--sel") : css("--site"), weight: sel ? 3 : 1.2,
+           fillColor: css("--site-fill"), fillOpacity: 1 };
+}
+function visible(p) {
+  return p.area_ha >= state.area &&
+         (p[state.species === "gran" ? "share_gran_300m" : "share_furu_300m"] ?? 0) <= state.pollen + 1e-9 &&
+         !(state.frost && p.tpi_mean != null && p.tpi_mean < -5) &&
+         !(state.one && p.n_eiendom > 1);
+}
+function tpiPill(t) {
+  if (t == null) return "";
+  if (t < -5) return '<span class="pill bad">hollow · frost risk</span>';
+  if (t < 0) return '<span class="pill warn">slightly low</span>';
+  return '<span class="pill good">open / raised</span>';
+}
+function soilBar(p) {
+  const parts = [["share_soil_sand_gravel", "#c8a24a", "sand/gravel"], ["share_soil_moraine", "#8c9a6e", "moraine"],
+                 ["share_soil_marine_clay", "#6f8fb0", "marine clay"], ["share_soil_thin_or_rock", "#9b8f86", "thin/rock"]];
+  const bar = parts.map(([k, c]) => `<i style="width:${(p[k] || 0) * 100}%;background:${c}" title="${k}"></i>`).join("");
+  const leg = parts.filter(([k]) => p[k] > 0.005).map(([k, c, n]) => `<span><i class="sw" style="background:${c};border-color:${c}"></i>${n} ${pct(p[k])}</span>`).join("");
+  return `<div class="bar" aria-hidden="true">${bar}</div><div class="legend">${leg || "<span>no soil map here</span>"}</div>`;
+}
+function showDetail(p) {
+  const k = kommuner[String(p.kommunenr).padStart(4, "0")] || p.kommunenr || "–";
+  const nk = `https://norgeskart.no/#!?project=norgeskart&layers=1002&zoom=14&lat=${Math.round(p.cy)}&lon=${Math.round(p.cx)}`;
+  $("detail").innerHTML = `<div class="card">
+    <div class="sortbar"><h3>Site ${p.site_id}</h3>${tpiPill(p.tpi_mean)}</div>
+    <dl class="kv">
+      <dt>Municipality</dt><dd>${k}</dd>
+      <dt>Area</dt><dd>${fmt(p.area_ha, 1)} ha</dd>
+      <dt>Elevation, mean</dt><dd>${fmt(p.elev_mean)} m</dd>
+      <dt>Slope, mean</dt><dd>${fmt(p.slope_mean, 1)}°</dd>
+      <dt>South-facing (135–225°)</dt><dd>${pct(p.share_south_facing)}</dd>
+      <dt>Position vs. 500 m surroundings</dt><dd>${fmt(p.tpi_mean, 1)} m</dd>
+      <dt>Within 300 m of mature spruce</dt><dd>${pct(p.share_gran_300m)}</dd>
+      <dt>Within 300 m of mature pine</dt><dd>${pct(p.share_furu_300m)}</dd>
+      <dt>Clear-cut since 2015</dt><dd>${pct(p.share_clearcut)}</dd>
+      <dt>NiN nature types surveyed</dt><dd>${pct(p.share_nin_surveyed)}</dd>
+      <dt>In reindeer district</dt><dd>${pct(p.share_rein_distrikt)}</dd>
+      <dt>Valuable cultural landscape</dt><dd>${pct(p.share_kulturlandskap)}</dd>
+      <dt>Properties (≥5% of site)</dt><dd>${fmt(p.n_eiendom)}</dd>
+      <dt>Main property (knr-gnr/bnr)</dt><dd>${p.eiendom ?? "–"} · ${pct(p.eiendom_share)}${p.eiendom_sameie ? " · shared parcel" : ""}</dd>
+      <dt>UTM33 (E, N)</dt><dd>${fmt(p.cx)}, ${fmt(p.cy)}</dd>
+    </dl>
+    <div><h2>Soil (NGU Løsmasser)</h2>${soilBar(p)}</div>
+    <p class="note"><a href="${nk}" target="_blank" rel="noopener">Open in Norgeskart</a> · copy the coordinates into Kilden to check AR5. Property is a matrikkel unit, not an owner; owners are in Grunnboken.</p>
+  </div>`;
+  $("detail").hidden = false;
+}
+function select(id, zoom) {
+  state.sel = id;
+  restyle();
+  const lyr = siteLayer.getLayers().find(l => l.feature.properties.site_id === id);
+  if (lyr) {
+    lyr.bringToFront(); showDetail(lyr.feature.properties);
+    if (zoom) map.fitBounds(lyr.getBounds(), { maxZoom: 14, padding: [40, 40] });
+  }
+  renderList();
+}
+const SORTS = {
+  area: (a, b) => b.area_ha - a.area_ha,
+  pollen: (a, b) => (a[pk()] ?? 0) - (b[pk()] ?? 0) || b.area_ha - a.area_ha,
+  south: (a, b) => (b.share_south_facing ?? 0) - (a.share_south_facing ?? 0),
+  sand: (a, b) => (b.share_soil_sand_gravel ?? 0) - (a.share_soil_sand_gravel ?? 0),
+};
+const pk = () => state.species === "gran" ? "share_gran_300m" : "share_furu_300m";
+function renderList() {
+  const vis = sites.filter(visible).sort(SORTS[state.sort]);
+  $("s-n").textContent = fmt(vis.length);
+  $("s-ha").textContent = fmt(vis.reduce((s, p) => s + p.area_ha, 0));
+  $("s-big").textContent = fmt(vis.filter(p => p.area_ha >= 10).length);
+  const top = vis.slice(0, 60);
+  $("list").innerHTML = top.length ? top.map(p => `<button class="item" data-id="${p.site_id}" aria-current="${p.site_id === state.sel}">
+      <span class="k">${kommuner[String(p.kommunenr).padStart(4, "0")] || "–"} · site ${p.site_id}</span><span class="a">${fmt(p.area_ha, 1)} ha</span>
+      <span class="m"><span>${fmt(p.elev_mean)} m</span><span>${fmt(p.slope_mean, 1)}°</span><span>${state.species === "gran" ? "spruce" : "pine"} ${pct(p[pk()])}</span><span>sand ${pct(p.share_soil_sand_gravel)}</span><span>${fmt(p.n_eiendom)} prop.</span></span>
+    </button>`).join("") + (vis.length > 60 ? `<div class="empty">Showing 60 of ${fmt(vis.length)}. Tighten the filters or zoom the map.</div>` : "")
+    : `<div class="empty">No sites match. Lower the minimum size or allow more pollen source.</div>`;
+}
+function applyFilters() {
+  $("v-area").textContent = state.area + " ha";
+  $("v-pollen").textContent = Math.round(state.pollen * 100) + " %";
+  restyle();
+  points.clearLayers();
+  points.addLayers(sites.filter(visible).map(p => markerOf[p.site_id]));
+  renderList();
+}
+function restyle() {   // canvas paths can only be restyled while on the map
+  if (!map.hasLayer(siteLayer)) return;
+  siteLayer.eachLayer(l => {
+    const on = visible(l.feature.properties);
+    l.setStyle(on ? styleFor(l.feature) : { opacity: 0, fillOpacity: 0 });
+    l.options.interactive = on;
+  });
+}
+
+$("f-area").oninput = e => { state.area = +e.target.value; applyFilters(); };
+$("f-pollen").oninput = e => { state.pollen = +e.target.value / 100; applyFilters(); };
+$("f-one").onchange = e => { state.one = e.target.checked; applyFilters(); };
+$("f-frost").onchange = e => { state.frost = e.target.checked; applyFilters(); };
+for (const k of ["topo", "grey", "simple"]) $("bg-" + k).onclick = () => setBg(k);
+$("sort").onchange = e => { state.sort = e.target.value; renderList(); };
+for (const sp of ["gran", "furu"]) $("sp-" + sp).onclick = () => {
+  state.species = sp;
+  $("sp-gran").setAttribute("aria-pressed", sp === "gran"); $("sp-furu").setAttribute("aria-pressed", sp === "furu");
+  applyFilters();
+};
+$("list").onclick = e => { const b = e.target.closest(".item"); if (b) select(+b.dataset.id, true); };
+$("f-plant").onchange = async e => {
+  if (e.target.checked) {
+    if (!plantData) { $("loading").hidden = false; plantData = await (await fetch("data/sites_planting.geojson")).json(); $("loading").hidden = true; }
+    plantLayer = plantLayer || L.geoJSON(plantData, { style: () => ({ renderer, color: css("--plant"), weight: 0.8, fillColor: css("--plant-fill"), fillOpacity: 1 }), interactive: false });
+    plantLayer.addTo(map); plantLayer.bringToBack(); base.forEach(b => b.bringToBack());
+  } else if (plantLayer) map.removeLayer(plantLayer);
+};
+
+let base = [];
+(async () => {
+  const get = f => fetch("data/" + f).then(r => { if (!r.ok) throw new Error(f + " " + r.status); return r.json(); });
+  const [kom, sea, lakes, roads, fro] = await Promise.all(["kommuner.geojson", "sea.geojson", "lakes.geojson", "roads.geojson", "sites_froplantasje.geojson"].map(get));
+  kom.features.forEach(f => kommuner[f.properties.nr] = f.properties.navn);
+  const kl = L.geoJSON(kom, { interactive: false, style: { renderer: baseRenderer, color: css("--border"), weight: 0.8, fillColor: css("--land"), fillOpacity: 1 } }).addTo(map);
+  const sl = L.geoJSON(sea, { interactive: false, style: { renderer: baseRenderer, stroke: false, fillColor: css("--water"), fillOpacity: 1 } }).addTo(map);
+  const ll = L.geoJSON(lakes, { interactive: false, style: { renderer: baseRenderer, stroke: false, fillColor: css("--water"), fillOpacity: 1 } }).addTo(map);
+  const rl = L.geoJSON(roads, { interactive: false, style: f => ({ renderer: baseRenderer, color: css("--road"), weight: f.properties.k === "E" ? 1.6 : f.properties.k === "R" ? 1.1 : 0.6, opacity: 0.8 }) }).addTo(map);
+  base = [rl, ll, sl, kl];
+  kom.features.forEach(f => {
+    const c = L.geoJSON(f).getBounds().getCenter();
+    L.tooltip({ permanent: true, direction: "center", className: "kname", interactive: false }).setLatLng(c).setContent(f.properties.navn).addTo(map);
+  });
+  sites = fro.features.map(f => f.properties);
+  siteLayer = L.geoJSON(fro, { style: styleFor, onEachFeature: (f, l) => l.on("click", () => select(f.properties.site_id, false)) });
+  const dot = L.divIcon({ className: "dot", iconSize: [12, 12] });
+  siteLayer.eachLayer(l => { const id = l.feature.properties.site_id;
+    markerOf[id] = L.marker(l.getBounds().getCenter(), { icon: dot, title: "Site " + id }).on("click", () => select(id, true)); });
+  map.on("zoomend", syncZoom);
+  map.fitBounds(kl.getBounds(), { padding: [10, 10] });
+  syncZoom();
+  $("method").textContent = METHOD;
+  setBg(state.bg);
+  $("loading").hidden = true;
+  applyFilters();
+})().catch(err => { console.error(err); $("loading").textContent = "Could not load map data: " + (err?.message ?? err); });
+</script>
